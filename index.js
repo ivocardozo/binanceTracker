@@ -10,7 +10,7 @@ const getPayload = (tradeType) => ({
     rows: 10,
     asset: "USDT",
     fiat: "BOB",
-    tradeType,
+    tradeType, // BUY or SELL
     payTypes: [],
     publisherType: "merchant",
 });
@@ -52,16 +52,16 @@ async function runOnce() {
 
 (async () => {
     try {
-        // IMPORTANT: wait for DB connection
+        // IMPORTANT: ensure DB is connected before writes
         await connectDB();
 
-        // Run once
+        // Run once for GitHub Actions
         await runOnce();
     } catch (err) {
         console.error("Fatal error:", err);
         process.exitCode = 1;
     } finally {
-        // IMPORTANT: close DB connection so Node can exit
+        // IMPORTANT: close DB connection so Node can exit and Actions can finish
         await mongoose.connection.close().catch(() => { });
     }
 })();
