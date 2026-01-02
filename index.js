@@ -1,71 +1,67 @@
-const axios = require('axios');
-const cron = require('node-cron');
-require('dotenv').config();
-const { connectDB, Price } = require('./database');
+const axios = require("axios");
+const mongoose = require("mongoose");
+require("dotenv").config();
+const { connectDB, Price } = require("./database");
 
-// Connect to Database
-connectDB();
-
-const ENDPOINT = 'https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search';
+const ENDPOINT = "https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search";
 
 const getPayload = (tradeType) => ({
     page: 1,
     rows: 10,
     asset: "USDT",
     fiat: "BOB",
-    tradeType: tradeType, // "BUY" or "SELL"
+    tradeType,
     payTypes: [],
-    publisherType: "merchant"
+    publisherType: "merchant",
 });
 
 async function fetchPrices(tradeType) {
-    try {
-        console.log(`Fetching ${tradeType} prices...`);
-        const response = await axios.post(ENDPOINT, getPayload(tradeType));
+    console.log(`Fetching ${tradeType} prices...`);
+    const response = await axios.post(ENDPOINT, getPayload(tradeType));
 
-        if (response.data && response.data.code === '000000' && Array.isArray(response.data.data)) {
-            const records = response.data.data.map((item, index) => {
-                const adv = item.adv;
-                const advertiser = item.advertiser;
+    if (response.data?.code === "000000" && Array.isArray(response.data.data)) {
+        const records = response.data.data.map((item, index) => {
+            const adv = item.adv;
+            const advertiser = item.advertiser;
 
-                return {
-                    timestamp: new Date(),
-                    type: tradeType,
-                    rank: index + 1,
-                    price: parseFloat(adv.price),
-                    advertiser: advertiser.nickName,
-                    available: parseFloat(adv.surplusAmount),
-                    limit_min: parseFloat(adv.minSingleTransAmount),
-                    limit_max: parseFloat(adv.dynamicMaxSingleTransAmount)
-                };
-            });
+            return {
+                timestamp: new Date(),
+                type: tradeType,
+                rank: index + 1,
+                price: parseFloat(adv.price),
+                advertiser: advertiser.nickName,
+                available: parseFloat(adv.surplusAmount),
+                limit_min: parseFloat(adv.minSingleTransAmount),
+                limit_max: parseFloat(adv.dynamicMaxSingleTransAmount),
+            };
+        });
 
-            // Save to MongoDB
-            await Price.create(records);
-            console.log(`Saved ${records.length} ${tradeType} records to Database.`);
-        } else {
-            console.error(`Error in response structure for ${tradeType}:`, response.data);
-        }
-    } catch (error) {
-        console.error(`Failed to fetch ${tradeType} prices:`, error.message);
+        await Price.create(records);
+        console.log(`Saved ${records.length} ${tradeType} records to Database.`);
+    } else {
+        console.error(`Unexpected response for ${tradeType}:`, response.data);
     }
 }
 
-async function runTask() {
+async function runOnce() {
     console.log(`Running task at ${new Date().toISOString()}`);
     await fetchPrices("BUY");
     await fetchPrices("SELL");
-    console.log('Task completed.');
+    console.log("Task completed.");
 }
 
-console.log('Starting Binance P2P Tracker (MongoDB Version)...');
-console.log('Scheduling task to run every 30 minutes.');
+(async () => {
+    try {
+        // IMPORTANT: wait for DB connection
+        await connectDB();
 
-// Run immediately on start
-runTask();
-
-// Schedule every 30 minutes
-// cron.schedule('*/30 * * * *', () => {
-//     runTask();
-// });
-
+        // Run once
+        await runOnce();
+    } catch (err) {
+        console.error("Fatal error:", err);
+        process.exitCode = 1;
+    } finally {
+        // IMPORTANT: close DB connection so Node can exit
+        await mongoose.connection.close().catch(() => { });
+    }
+})();
