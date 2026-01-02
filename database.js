@@ -14,17 +14,13 @@ const priceSchema = new mongoose.Schema({
 const Price = mongoose.model('Price', priceSchema);
 
 const connectDB = async () => {
-    try {
-        const uri = process.env.MONGODB_URI;
-        // const uri = "mongodb+srv://user1:Control123@cluster0.7v65ovg.mongodb.net/binance_tracker?retryWrites=true&w=majority&appName=Cluster0";
-        // const uri = "mongodb+srv://icarvar:26oFkYlBOL69RqyZ@binancep2ptracker.xadqkny.mongodb.net/binance_tracker?retryWrites=true&w=majority&appName=binanceP2PTracker";
+    const uri = process.env.MONGODB_URI;
+    if (!uri) throw new Error("MONGODB_URI is missing");
 
-        await mongoose.connect(uri); // No deprecated options needed in Mongoose 6+
-        console.log('MongoDB connected successfully');
-    } catch (error) {
-        console.error('MongoDB connection error:', error);
-        // We don't exit process here strictly so the cron can keep trying or log the error
-    }
+    await mongoose.connect(uri);
+    console.log("MongoDB connected successfully");
+    console.log("Connected DB:", mongoose.connection.name);
+    console.log("Host:", mongoose.connection.host);
 };
 
 module.exports = { connectDB, Price };
